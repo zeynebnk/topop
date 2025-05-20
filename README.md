@@ -27,6 +27,8 @@ hyperparams (default rn)
 
 ### TO
 in -> CAD/.stl
+
 TO type (baseline, ver, ...)
+
 out -> CAD/.stl
 
