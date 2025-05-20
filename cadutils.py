@@ -16,8 +16,6 @@ def density2stl(density, out_name, spacing=(1,1,1), threshold=0.5, smooth_iters=
 
     
     if len(density.shape) == 4:
-        density = density[0, 0]
-    elif len(density.shape) == 3:  
         density = density[0]
 
     # uniform grid
@@ -44,13 +42,52 @@ def stl2density(stl_path, grid_size=(64, 64, 64), spacing=(1, 1, 1)):
 
 
 def load_density(name='disc_complex', idx=0):
-    if name in ['disc_complex', 'disc_simple', ]:
+    if name in ['disc_complex', 'disc_simple', 'sphere_simple']:
         dataset = SELTODataset("../dl4to_dataset", name=name)
         problem, _ = dataset[idx]
         return problem.Ω_design
     else:
         density = stl2density(name)
         return density
+        
+def load_face_force_and_dirichlet(shape, force_location='top', force_direction=(0, 0, -1), force_magnitude=4e7, fixed_location='bottom', Ω_design=None):
+    F = torch.zeros(3, *shape)
+    Ω_dirichlet = torch.zeros(3, *shape)
+
+    locations = {
+        'top': (slice(None), slice(None), -1),
+        'bottom': (slice(None), slice(None), 0),
+        'left': (0, slice(None), slice(None)),
+        'right': (-1, slice(None), slice(None)),
+        'front': (slice(None), 0, slice(None)),
+        'back': (slice(None), -1, slice(None))
+    }
+    
+    # design mask
+    if Ω_design is not None:
+        design_mask = (Ω_design[0] != 0) 
+    else:
+        design_mask = torch.ones(shape, dtype=torch.bool)
+    
+    if force_location in locations:
+        idx = locations[force_location]
+        force = torch.tensor(force_direction, dtype=torch.float) * force_magnitude
+        
+        force_mask = design_mask[idx]
+        F[0, idx[0], idx[1], idx[2]] = force[0] * force_mask
+        F[1, idx[0], idx[1], idx[2]] = force[1] * force_mask
+        F[2, idx[0], idx[1], idx[2]] = force[2] * force_mask
+
+    # boundary conditions
+    if fixed_location in locations:
+        idx = locations[fixed_location]
+        fixed_mask = design_mask[idx]
+        Ω_dirichlet[0, idx[0], idx[1], idx[2]] = fixed_mask
+        Ω_dirichlet[1, idx[0], idx[1], idx[2]] = fixed_mask
+        Ω_dirichlet[2, idx[0], idx[1], idx[2]] = fixed_mask
+    
+    return F, Ω_dirichlet
+
         
 def load_force_and_dirichlet(shape, force_location='top', force_direction=(0, 0, -1), force_magnitude=4e7, fixed_location='bottom', Ω_design=None):
     F = torch.zeros(3, *shape)
@@ -115,7 +152,7 @@ def construct_custom_problem(density, material_props, spacing=(1.0, 1.0, 1.0)):
         Ω_dirichlet=Ω_dirichlet,
         Ω_design=Ω_design,
         F=F,
-        restrict_density_for_voxels_with_applied_forces=True
+        restrict_density_for_voxels_with_applied_forces=False
     )
     
     return problem
