@@ -1,5 +1,6 @@
 # topop
 topological optimization 
+baselines + exploration
 
 ### inputs - problem space
 material_props (scalar): 
